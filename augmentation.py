@@ -36,10 +36,10 @@ def read_data(d, opt, vocab_mapping):
             words = []
             for w_i in range(w_start, w_end + 1):
                 words.append(d['words'][w_i - 1])
-            sub = ' '.join(d['words'])
+            sub = ' '.join(words)
 
-            frame_v_start = max(round(75 / 3000 * d['t_start'][w_start - 1]), 1)
-            frame_v_end = min(round(75 / 3000 * d['t_end'][w_end - 1]), 75)
+            frame_v_start = max(round(1 / 1000 * d['t_start'][w_start - 1]), 1)
+            frame_v_end = min(round(1 / 1000 * d['t_end'][w_end - 1]), 75)
 
             # if too short, back off to whole sequence
             if frame_v_end - frame_v_start + 1 <= 2:
@@ -89,4 +89,4 @@ def read_data(d, opt, vocab_mapping):
         temporal_jitter = TemporalJitter(opt['temporal_jitter'])
         x = temporal_jitter(x)
     
-    return (x, y)
+    return (x, y, sub)

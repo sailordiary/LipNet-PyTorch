@@ -62,17 +62,14 @@ class LipNet(nn.Module):
         self.opt = opt
         self.conv = nn.Sequential(
             nn.Conv3d(3, 32, kernel_size=(3, 5, 5), stride=(1, 2, 2), padding=(1, 2, 2)),
-            # nn.BatchNorm3d(32, momentum=0.9),
             nn.ReLU(True),
             nn.MaxPool3d(kernel_size=(1, 2, 2), stride=(1, 2, 2)),
             nn.Dropout3d(opt['dropout']),
             nn.Conv3d(32, 64, kernel_size=(3, 5, 5), stride=(1, 1, 1), padding=(1, 2, 2)),
-            # nn.BatchNorm3d(64, momentum=0.9),
             nn.ReLU(True),
             nn.MaxPool3d(kernel_size=(1, 2, 2), stride=(1, 2, 2)),
             nn.Dropout3d(opt['dropout']),
             nn.Conv3d(64, 96, kernel_size=(3, 3, 3), stride=(1, 1, 1), padding=(1, 1, 1)),
-            # nn.BatchNorm3d(96, momentum=0.9),
             nn.ReLU(True),
             nn.MaxPool3d(kernel_size=(1, 2, 2), stride=(1, 2, 2)),
             nn.Dropout3d(opt['dropout']),
@@ -92,7 +89,7 @@ class LipNet(nn.Module):
             TimeBatchWrapper(mod=nn.Linear(opt['rnn_size'] * 2, vocab_size + 1))
             # T B V'
         )
-        # initializations
+        # initialisations
         for m in self.conv.modules():
             if isinstance(m, nn.Conv3d):
                 init.kaiming_normal_(m.weight, nonlinearity='relu')
@@ -108,6 +105,10 @@ class LipNet(nn.Module):
                             -math.sqrt(3) * stdv, math.sqrt(3) * stdv)
                 init.orthogonal_(m.weight_hh_l0[i: i + opt['rnn_size']])
                 init.constant_(m.bias_ih_l0[i: i + opt['rnn_size']], 0)
+                init.uniform_(m.weight_ih_l0_reverse[i: i + opt['rnn_size']],
+                            -math.sqrt(3) * stdv, math.sqrt(3) * stdv)
+                init.orthogonal_(m.weight_hh_l0_reverse[i: i + opt['rnn_size']])
+                init.constant_(m.bias_ih_l0_reverse[i: i + opt['rnn_size']], 0)
     
     def forward(self, x):
         x = self.conv(x)

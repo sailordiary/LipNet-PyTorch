@@ -19,7 +19,7 @@ def warpctc_collate(batch):
     '''
     # TODO: implement type assertion
     # error_msg = "batch must be list of (x, y, len); found {}"
-    xs, ys, lens, indices = zip(*batch)
+    xs, ys, lens, indices, subtitles = zip(*batch)
     max_len = max(lens)
     x = default_collate(xs)
     x.narrow(2, 0, max_len)
@@ -29,8 +29,9 @@ def warpctc_collate(batch):
     label_lens = torch.IntTensor([len(label) for label in ys])
     act_lens = torch.IntTensor(lens)
     ids = default_collate(indices)
+    subs = default_collate(subtitles)
 
-    return [x, labels, act_lens, label_lens, ids]
+    return [x, labels, act_lens, label_lens, ids, subs]
 
 class GRIDDataset(Dataset):
     def __init__(self, opt, dset='train'):
@@ -46,12 +47,11 @@ class GRIDDataset(Dataset):
         vocab_unordered[' '] = True
 
         # iterate speakers
-        print ('Loading videos...')
+        print ('Loading videos for %s set...' % self.dset)
         count_s = 0
         pbar = ProgressBar().start()
         for dir_s in os.listdir(opt['datapath']):
             count_s += 1
-            pbar.update(int(count_s / 33 * 100))
             # get speaker videos
             for dir_v in os.listdir('%s/%s' % (opt['datapath'], dir_s)):
                 if not opt['debug'] or len(self.dataset) <= opt['bs'] * 10:
@@ -82,35 +82,36 @@ class GRIDDataset(Dataset):
                                 for char in tok[2]:
                                     vocab_unordered[char] = True
                         # append to subs data
-                        if (not opt['test_overlapped'] and (d['s'] == 's1' or d['s'] == 's2' or d['s'] == 's20' or d['s'] == 's22')) or (opt['test_overlapped']): #and self.overlapped_list[dir_s][dir_v]):
-                            if not opt['debug'] or len(self.dataset) <= opt['bs'] * 2:
-                                if self.dset == 'test':
-                                    d['mode'] = 7
-                                    d['flip'] = False
-                                    d['test'] = True
-                                    self.dataset.append(d)
-                        elif not opt['debug'] or len(self.dataset) <= opt['bs'] * 20:
-                            d['test'] = False
-                            for flip in (False, True):
-                                # add word instances
-                                if opt['use_words']:
-                                    for w_start in range(1, 7):
-                                        d_i = d
-                                        d_i['flip'] = flip
-                                        d_i['mode'] = 1
-                                        d_i['w_start'] = w_start
-                                        # NOTE: it appears the authors never made use of the mode option.
-                                        # All instances used were either whole sentences or individual words.
-                                        d_i['w_end'] = w_start + d_i['mode'] - 1
-                                        frame_v_start = max(round(75 / 3000 * d['t_start'][d_i['w_start'] - 1]), 1)
-                                        frame_v_end = min(round(75 / 3000 * d['t_end'][d_i['w_end'] - 1]), 75)
-                                        if frame_v_end - frame_v_start + 1 >= 3:
-                                            self.dataset.append(d_i)
-                                # add whole sentences
-                                d_i = d
-                                d_i['mode'] = 7
-                                d_i['flip'] = flip
-                                self.dataset.append(d_i)
+                        if (not opt['test_overlapped'] and (dir_s in ['s1', 's2', 's20', 's22'])) or (opt['test_overlapped']): #and self.overlapped_list[dir_s][dir_v]):
+                            if self.dset == 'test':
+                                d['mode'] = 7
+                                d['flip'] = False
+                                d['test'] = True
+                                self.dataset.append(d)
+                        else:
+                            if self.dset == 'train':
+                                d['test'] = False
+                                for flip in (False, True):
+                                    # add word instances
+                                    if opt['use_words']:
+                                        for w_start in range(1, 7):
+                                            d_i = d.copy()
+                                            d_i['flip'] = flip
+                                            d_i['mode'] = 1
+                                            d_i['w_start'] = w_start
+                                            # NOTE: it appears the authors never made use of the mode option.
+                                            # All instances used were either whole sentences or individual words.
+                                            d_i['w_end'] = w_start + d_i['mode'] - 1
+                                            frame_v_start = max(round(1 / 1000 * d['t_start'][d_i['w_start'] - 1]), 1)
+                                            frame_v_end = min(round(1 / 1000 * d['t_end'][d_i['w_end'] - 1]), 75)
+                                            if frame_v_end - frame_v_start + 1 >= 3:
+                                                self.dataset.append(d_i)
+                                    # add whole sentences
+                                    d_i = d.copy()
+                                    d_i['mode'] = 7
+                                    d_i['flip'] = flip
+                                    self.dataset.append(d_i)
+            pbar.update(int(count_s / 33 * 100))
         pbar.finish()
         # generate vocabulary
         self.vocab = []
@@ -137,10 +138,10 @@ class GRIDDataset(Dataset):
         # load video using read_data() and shove into x
         d = self.dataset[index]
         # targets: bs-length tensor of targets (each one is the length of the target seq)
-        frames, y = read_data(d, self.opt, self.vocab_mapping)
-        x[:, : frames.size(1), :, :] = x
+        frames, y, sub = read_data(d, self.opt, self.vocab_mapping)
+        x[:, : frames.size(1), :, :] = frames
         # input lengths: bs-length tensor of integers, representing
         # the number of input timesteps/frames for the given batch element
         length = frames.size(1)
 
-        return (x, y, length, index)
+        return (x, y, length, index, sub)

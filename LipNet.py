@@ -20,11 +20,19 @@ if __name__ == '__main__':
     exp = Exp(opt)
     model = exp.model
     decoder = Decoder(exp.trainset.vocab)
-    crit = CTCLoss(size_average=True)
+    crit = CTCLoss()
     if opt['general']['cuda']:
         model = model.cuda()
         #model = nn.DataParallel(model).cuda()
         crit = crit.cuda()
+    
+    if opt['general']['use_keras_weights']:
+        from nn_transfer import transfer
+        transfer.convert_lipnet(model, 'nn_transfer/unseen-weights178.h5')
+    if opt['general']['freeze_conv']:
+        def freeze(m):
+            m.requires_grad = False
+        model.conv.apply(freeze)
     
     # load model
     try:
@@ -47,13 +55,13 @@ if __name__ == '__main__':
         niters = checkpoint['iter']
         start_epoch = checkpoint['epoch'] - 1
 
+    exp_name = int(time.time())
     random.seed(opt['general']['seed'])
     torch.manual_seed(opt['general']['seed'])
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(opt['general']['seed'])
 
     # set up experiment results directory
-    exp_name = int(time.time())
     ckpt_dir = 'ckpt/%d/' % exp_name
     log_dir = 'log/%d/' % exp_name
     os.makedirs(ckpt_dir, exist_ok=True)
@@ -68,22 +76,24 @@ if __name__ == '__main__':
         for i_batch, sample_batched in enumerate(exp.trainloader):
             pbar.update(i_batch + 1)
             niters += 1
-            x, labels, act_lens, label_lens, ids = sample_batched
+            optimfunc.zero_grad()
+            x, labels, act_lens, label_lens, ids, subs = sample_batched
             if opt['general']['cuda']:
                 x = x.cuda()
             acts = model(x)
-            loss = crit(acts.cpu(), labels, act_lens, label_lens)
+            loss = crit(acts, labels, act_lens, label_lens)
+            if opt['train']['curriculum'] > 0:
+                ratio = opt['train']['curriculum'] ** ep
+                for b in range(0, x.size(0)):
+                    id = ids[b]
+                    if exp.trainset.dataset[id]['mode'] == 1:
+                        loss[b] *= ratio
+            loss = loss.mean()
 
             # skip this iteration if the loss is NaN
             if not torch.isnan(loss) and loss >= -1000000 and loss <= 1000000:
                 writer.add_scalar('Train/Loss', loss, niters)
                 loss.backward()
-                if opt['train']['curriculum'] > 0:
-                    ratio = opt['train']['curriculum'] ** ep
-                    for b in range(0, x.size(0)):
-                        id = ids[b]
-                        if exp.trainset.dataset[id]['mode'] == 1:
-                            acts.grad[b] *= ratio
                 optimfunc.step()
             else:
                 print ('Logits:', F.softmax(acts).min(), F.softmax(acts).max(), acts.size(0), acts.size(1))
@@ -91,8 +101,15 @@ if __name__ == '__main__':
             if niters % opt['general']['print_every'] == 0:
                 print ('Epoch %d, iter %d: Loss = %.2f' % (ep + 1, niters, loss))
                 print ('---------------------------')
-                print ('BEST PATH:', decoder.decode_greedy(acts)[:5])
-                print ('BEAM SEARCH:', decoder.decode_beam(acts)[:5])
+                gt = subs[:5]
+                decoded = decoder.decode_greedy(acts, act_lens)[:5]
+                print ('GROUND TRUTH:', gt)
+                print ('BEST PATH:', decoded)
+                wer = decoder.wer_batch(decoded, gt)
+                cer = decoder.cer_batch(decoded, gt)
+                writer.add_scalar('Train/WER', wer, niters)
+                writer.add_scalar('Train/CER', cer, niters)
+                # print ('BEAM SEARCH:', decoder.decode_beam(acts)[:5])
                 print ('---------------------------')
         pbar.finish()
         if ep % opt['general']['checkpoint_every'] == 0 or ep == 0 or ep == opt['train']['nepochs'] - 1:
@@ -104,6 +121,25 @@ if __name__ == '__main__':
             print ('Saving checkpoint...')
             torch.save(state, ckpt_dir + 'checkpoint_e%d_iter%d.pth' % (ep + 1, niters))
         # validation
-        #model.eval()
-        
-        #model.train()
+        print ('Running evaluation')
+        model.eval()
+        with torch.no_grad():
+            dataiter = iter(exp.trainloader)
+            x, _, act_lens, _, _, subs = dataiter.next()
+            if opt['general']['cuda']:
+                x = x.cuda()
+            acts = model(x)
+            print ('---------------------------')
+            gt = subs[:5]
+            decoded = decoder.decode_greedy(acts, act_lens)[:5]
+            print ('GROUND TRUTH:', gt)
+            print ('BEST PATH:', decoded)
+            print ('---------------------------')
+            wer = decoder.wer_batch(decoded, gt)
+            cer = decoder.cer_batch(decoded, gt)
+            print ('WER: %.2f   CER: %.2f' % (wer * 100, cer * 100))
+            writer.add_scalar('Test/WER', wer, niters)
+            writer.add_scalar('Test/CER', cer, niters)
+            # print ('BEAM SEARCH:', decoder.decode_beam(acts)[:5])
+            print ('---------------------------')
+        model.train()

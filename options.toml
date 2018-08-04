@@ -1,9 +1,11 @@
 [general]
-seed = 20180801
+seed = 20180803
 checkpoint_every = 1
 print_every = 10
 cuda = true
-checkpoint = "ckpt/1533143907/checkpoint_e36_iter105192.pth"
+checkpoint = ""
+use_keras_weights = true
+freeze_conv = false
 
 [network]
 rnn_size = 256
@@ -12,7 +14,7 @@ dropout = 0.5
 [train]
 num_workers = 8
 curriculum = 0.925
-lr = 1e-4
+lr = 3e-4
 nepochs = 10000
 
 [dataset]
