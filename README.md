@@ -11,6 +11,5 @@ TODO
 TODO
 
 ## Pending features
-- Unseen speakers
-- WER and CER calculation
+- Overlapped speakers
 - Cleanups
