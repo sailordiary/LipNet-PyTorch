@@ -7,9 +7,10 @@ import editdistance
 
 class Decoder:
 
-    def __init__(self, labels, lm_path=None, alpha=1, beta=1.5, cutoff_top_n=40, cutoff_prob=1.0, beam_width=200, num_processes=4, blank_index=0):
-        self.vocab_list = labels + ['_'] # NOTE: blank symbol
-        self._decoder = CTCBeamDecoder(self.vocab_list, lm_path, alpha, beta, cutoff_top_n, cutoff_prob, beam_width, num_processes, blank_index)
+    def __init__(self, labels, lm_path=None, alpha=1, beta=1.5, cutoff_top_n=40, cutoff_prob=0.99, beam_width=200, num_processes=24, blank_id=0):
+        self.vocab_list = ['_'] + labels # NOTE: blank symbol
+        self._decoder = CTCBeamDecoder(['_@'] + labels[1:], lm_path, alpha, beta, cutoff_top_n, cutoff_prob, beam_width, num_processes, blank_id)
+        # NOTE: the whitespace symbol is replaced with an @ symbol for explicit modeling in char-based LMs
 
     def convert_to_string(self, tokens, seq_len=None):
         if not seq_len:
@@ -22,14 +23,14 @@ class Decoder:
             else:
                 if tokens[i] != 0 and tokens[i] != tokens[i - 1]:
                     out.append(tokens[i])
-        return ''.join(self.vocab_list[i - 1] for i in out)
+        return ''.join(self.vocab_list[i] for i in out)
     
-    def decode_beam(self, logits):
+    def decode_beam(self, logits, seq_lens):
         decoded = []
         tlogits = logits.transpose(0, 1)
-        beam_result, beam_scores, timesteps, out_seq_len = self._decoder.decode(tlogits)
+        beam_result, beam_scores, timesteps, out_seq_len = self._decoder.decode(tlogits, seq_lens)
         for i in range(tlogits.size(0)):
-            output_str = self.convert_to_string(beam_result[i][0], out_seq_len[i][0])
+            output_str = ''.join(map(lambda x: self.vocab_list[x], beam_result[i][0][:out_seq_len[i][0]]))
             decoded.append(output_str)
         return decoded
 
