@@ -13,3 +13,4 @@ TODO
 ## Pending features
 - Overlapped speakers
 - Cleanups
+- ~~KenLM support~~
