@@ -19,7 +19,7 @@ if __name__ == '__main__':
     # construct model
     exp = Exp(opt)
     model = exp.model
-    decoder = Decoder(exp.trainset.vocab)
+    decoder = Decoder(exp.trainset.vocab, lm_path=opt['general']['lm_path'])
     crit = CTCLoss()
     if opt['general']['cuda']:
         model = model.cuda()
@@ -102,14 +102,14 @@ if __name__ == '__main__':
                 print ('Epoch %d, iter %d: Loss = %.2f' % (ep + 1, niters, loss))
                 print ('---------------------------')
                 gt = subs[:5]
-                decoded = decoder.decode_greedy(acts, act_lens)[:5]
+                decoded = decoder.decode_beam(acts, act_lens)[:5]
                 print ('GROUND TRUTH:', gt)
-                print ('BEST PATH:', decoded)
+                print ('BEST PATH:', decoder.decode_greedy(acts, act_lens)[:5])
+                print ('BEAM SEARCH:', decoded)
                 wer = decoder.wer_batch(decoded, gt)
                 cer = decoder.cer_batch(decoded, gt)
                 writer.add_scalar('Train/WER', wer, niters)
                 writer.add_scalar('Train/CER', cer, niters)
-                # print ('BEAM SEARCH:', decoder.decode_beam(acts)[:5])
                 print ('---------------------------')
         pbar.finish()
         if ep % opt['general']['checkpoint_every'] == 0 or ep == 0 or ep == opt['train']['nepochs'] - 1:
@@ -131,15 +131,15 @@ if __name__ == '__main__':
             acts = model(x)
             print ('---------------------------')
             gt = subs[:5]
-            decoded = decoder.decode_greedy(acts, act_lens)[:5]
+            decoded = decoder.decode_beam(acts, act_lens)[:5]
             print ('GROUND TRUTH:', gt)
-            print ('BEST PATH:', decoded)
+            print ('BEST PATH:', decoder.decode_greedy(acts, act_lens)[:5])
+            print ('BEAM SEARCH:', decoded)
             print ('---------------------------')
             wer = decoder.wer_batch(decoded, gt)
             cer = decoder.cer_batch(decoded, gt)
             print ('WER: %.2f   CER: %.2f' % (wer * 100, cer * 100))
             writer.add_scalar('Test/WER', wer, niters)
             writer.add_scalar('Test/CER', cer, niters)
-            # print ('BEAM SEARCH:', decoder.decode_beam(acts)[:5])
             print ('---------------------------')
         model.train()
