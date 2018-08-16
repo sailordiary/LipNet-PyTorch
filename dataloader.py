@@ -6,6 +6,7 @@ import os
 import json
 from progressbar import *
 from skimage import io
+import random
 
 
 def round(x):
