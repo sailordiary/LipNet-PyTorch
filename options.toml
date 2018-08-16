@@ -1,26 +1,27 @@
 [general]
-seed = 20180803
+seed = 20190101
 checkpoint_every = 1
 print_every = 10
 cuda = true
-checkpoint = ""
-use_keras_weights = true
+checkpoint = "ckpt/1533467999/checkpoint_e35_iter703640.pth"
+use_keras_weights = false
 freeze_conv = false
+lm_path = "lm/GRID.klm"
 
 [network]
 rnn_size = 256
 dropout = 0.5
 
 [train]
-num_workers = 8
+num_workers = 32
 curriculum = 0.925
-lr = 3e-4
+lr = 8e-5
 nepochs = 10000
 
 [dataset]
 datapath = "/train/GRID/data/lipnet_crop_sd_100x50"
 alignpath = "/train/GRID/align"
-bs = 40
+bs = 20
 test_overlapped = false
 temporal_jitter = 0.05
 normalise = true
