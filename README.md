@@ -13,4 +13,5 @@ TODO
 ## Pending features
 - Overlapped speakers
 - Cleanups
-- ~~KenLM support~~
+
+NOTE: Will begin cleaning up the code and migrating to native CTC in PyTorch 1.0 in the next few days.
