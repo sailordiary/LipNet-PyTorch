@@ -219,6 +219,6 @@ if __name__ == '__main__':
                 'iter': niters,
                 'opt': opt
             }
-            torch.save(state, os.path.join(ckpt_dir, 'checkpoint_e%06d_loss%.5f.pth'.format(ep + 1, stats['losses_test'][ep])))
+            torch.save(state, os.path.join(ckpt_dir, 'checkpoint_e{:06d}_loss{:.5f}.pth'.format(ep + 1, stats['losses_test'][ep])))
             print ('Saved checkpoint')
 
