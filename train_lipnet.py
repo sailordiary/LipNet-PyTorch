@@ -193,11 +193,10 @@ if __name__ == '__main__':
                 if torch.isnan(loss).any():
                     print ('Skipping iteration with NaN test loss')
                     continue
-                iter_loss = loss.item()
-                writer.add_scalar('Test/Loss', iter_loss, niters)
-                stats['losses_test'][ep] += iter_loss * x.size(0)
+                stats['losses_test'][ep] += loss.item() * x.size(0)
                 # TODO: add bookkeeping for epoch WER and CER statistics
         stats['losses_test'][ep] /= len(exp.testset)
+        writer.add_scalar('Test/Loss', stats['losses_test'][ep], niters)
         
         # print training statistics
         if ep % opt.print_every == 0:
