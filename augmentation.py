@@ -1,4 +1,3 @@
-from modules.TemporalJitter import TemporalJitter
 import math
 import random
 from PIL import Image
@@ -8,6 +7,7 @@ import torch
 
 def round(x):
     return math.floor(x + 0.5)
+
 
 def read_data(d, opt, vocab_mapping):
     test_mode = d['test'] or False
@@ -49,25 +49,16 @@ def read_data(d, opt, vocab_mapping):
     # construct output tensor
     y = []
     # allow whitespaces to be predicted
-    if opt['mode_sub']:
-        for char in sub:
-            y.append(vocab_mapping[char])
-    else:
-        for char in sub:
-            if char != ' ':
-                y.append(vocab_mapping[char])
+    for char in sub: y.append(vocab_mapping[char])
     
-    # data path: BASE/s1/....../mouth_xxx.png
-    cur_path = '%s/%s/%s/%s' % (opt['datapath'], d['s'], d['v'], opt['mode_img'])
     # load images
+    # data path: $BASE/sX/.../mouth_xxx.png
+    cur_path = '{}/{}/{}/{}'.format(opt.datapath, d['s'], d['v'], opt.mode_img)
     # randomly flip video
     if test_mode: flip = False
     else: flip = flip or random.random() > 0.5
 
-    # NOTE: since LipNet uses a fixed-size crop, we divert from the
-    # original implementation, which attempts to determine H and W
-    # from the first frame in the sequence.
-    x = torch.Tensor(3, frame_v_end - frame_v_start + 1, 50, 100)
+    x = torch.FloatTensor(3, frame_v_end - frame_v_start + 1, 50, 100)
     transform_lst = []
     if flip:
         transform_lst.append(transforms.functional.hflip)
@@ -79,14 +70,25 @@ def read_data(d, opt, vocab_mapping):
     data_transform = transforms.Compose(transform_lst)
     frame_count = 0
     for f_frame in range(frame_v_start, frame_v_end + 1):
-        img = Image.open('%s_%03d.png' % (cur_path, f_frame - 1)).convert('RGB')
+        img = Image.open('{}_{:03d}.png'.format(cur_path, f_frame - 1)).convert('RGB')
         img = data_transform(img)
         x[:, frame_count, :, :] = img
         frame_count += 1
 
     # temporal jitter
-    if opt['temporal_jitter'] > 0 and not test_mode:
-        temporal_jitter = TemporalJitter(opt['temporal_jitter'])
-        x = temporal_jitter(x)
+    if opt.temporal_aug > 0 and not test_mode:
+        length = x.size(1)
+        output = x.clone()
+        prob_del = torch.Tensor(length).bernoulli_(opt.temporal_aug)
+        prob_dup = prob_del.index_select(0, torch.linspace(length - 1, 0, length).long())
+        output_count = 0
+        for t in range(0, length):
+            if prob_del[t] == 0:
+                output[:, output_count, :] = x[:, t, :]
+                output_count += 1
+            if prob_dup[t] == 1 and output_count > 0:
+                output[:, output_count, :] = x[:, output_count - 1, :]
+                output_count += 1
+        x = output
     
-    return (x, y, sub)
+    return x, y, sub
