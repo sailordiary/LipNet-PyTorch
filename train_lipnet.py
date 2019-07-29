@@ -169,7 +169,7 @@ if __name__ == '__main__':
             optimfunc.step()
             stats['losses'][ep] += iter_loss * x.size(0)
         
-        stats['losses'][ep] /= len(exp.trainloader)
+        stats['losses'][ep] /= len(exp.trainset)
         pbar.finish()
         
         # initialise EWMA statistics
@@ -197,7 +197,7 @@ if __name__ == '__main__':
                 writer.add_scalar('Test/Loss', iter_loss, niters)
                 stats['losses_test'][ep] += iter_loss * x.size(0)
                 # TODO: add bookkeeping for epoch WER and CER statistics
-        stats['losses_test'][ep] /= len(exp.testloader)
+        stats['losses_test'][ep] /= len(exp.testset)
         
         # print training statistics
         if ep % opt.print_every == 0:
