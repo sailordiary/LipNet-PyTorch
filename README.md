@@ -1,10 +1,41 @@
 # "LipNet: End-to-End Sentence-level Lipreading" in PyTorch
-A PyTorch implementation of the model described in ["LipNet: End-to-End Sentence-level Lipreading"](https://arxiv.org/abs/1611.01599) by Yannis M. Assael, Brendan Shillingford, Shimon Whiteson, and Nando de Freitas.
+An unofficial PyTorch implementation of the model described in ["LipNet: End-to-End Sentence-level Lipreading"](https://arxiv.org/abs/1611.01599) by Yannis M. Assael, Brendan Shillingford, Shimon Whiteson, and Nando de Freitas. Based on the official Torch implementation.
+
+[![LipNet video](https://img.youtube.com/vi/fa5QGremQf8/0.jpg)](https://www.youtube.com/watch?v=fa5QGremQf8)
 
 ## Usage
 First, create symbolic links to where you store images and alignments in the `data` folder:
 
-TODO
+```bash
+ln -s PATH_TO_ALIGNS data/align
+ln -s PATH_TO_IMAGES data/images
+```
+
+Then run the program:
+
+```bash
+python3 train_lipnet.py
+```
+
+The `images` folder should be organised as:
+```
+├── s1
+│   ├── bbaf2n
+│   │   ├── mouth_000.png
+│   │   ├── mouth_001.png
+...
+```
+
+And the `align` folder:
+```
+├── s1
+│   ├── bbaf2n.align
+│   ├── bbaf3s.align
+│   ├── bbaf4p.align
+...
+```
+
+That's it! You can specify the GPU to use in the program where the environment variable `CUDA_VISIBLE_DEVICES` is set. Feel free to play around with the parameters.
 
 ## Dependencies
 - Python 3.x
@@ -14,6 +45,9 @@ TODO
 - torchsummary
 - progressbar2
 - editdistance
+- scikit-image
+- torchvision
+- pillow
 
 ## Results
 TODO
