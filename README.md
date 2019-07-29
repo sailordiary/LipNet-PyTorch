@@ -13,6 +13,7 @@ TODO
 - ctcdecode (for beam search decoding)
 - torchsummary
 - progressbar2
+- editdistance
 
 ## Results
 TODO
