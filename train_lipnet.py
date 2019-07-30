@@ -90,7 +90,7 @@ if __name__ == '__main__':
         model.load_state_dict(checkpoint['net'])
         niters, start_epoch = checkpoint['iter'], checkpoint['epoch']
 
-    exp_name = int(time.time())
+    exp_name = '{}'.format(int(time.time()))
     # set up experiment results directory
     if not opt.test:
         ckpt_dir = os.path.join('checkpoints', exp_name)
