@@ -50,6 +50,8 @@ if __name__ == '__main__':
     parser.add_argument('--checkpoint_every', default=1, type=int, help='epochs between saving checkpoints')
     parser.add_argument('--epochs', default=10000, type=int, help='number of epochs to train')
     
+    parser.add_argument('--test', default=False, action='store_true', help='only run test phase')
+    
     parser.add_argument('--rnn_size', default=256, type=int, help='RNN size (default: 256)')
     parser.add_argument('--dropout', default=0.5, type=float, help='Dropout rate (default: 0.5)')
 
@@ -59,7 +61,7 @@ if __name__ == '__main__':
     opt = parser.parse_args()
     for arg in vars(opt):
         print ('opt: {}={}'.format(arg, getattr(opt, arg)))
-    
+
     # deterministic training
     torch.manual_seed(opt.seed)
     torch.cuda.manual_seed(opt.seed)
@@ -86,107 +88,107 @@ if __name__ == '__main__':
         print ('Loading model {}'.format(opt.checkpoint))
         checkpoint = torch.load(opt.checkpoint)
         model.load_state_dict(checkpoint['net'])
-        niters = checkpoint['iter']
-        start_epoch = checkpoint['epoch']
+        niters, start_epoch = checkpoint['iter'], checkpoint['epoch']
 
     exp_name = int(time.time())
     # set up experiment results directory
-    ckpt_dir = 'checkpoints/{}'.format(exp_name)
-    log_dir = 'logs/{}'.format(exp_name)
-    os.makedirs(ckpt_dir, exist_ok=True)
-    os.makedirs(log_dir, exist_ok=True)
-    writer = SummaryWriter(log_dir)
-    
-    print ('Experiment name: {}\tDevice: {}'.format(exp_name, device))
-    
+    if not opt.test:
+        ckpt_dir = os.path.join('checkpoints', exp_name)
+        log_dir = os.path.join('logs', exp_name)
+        os.makedirs(ckpt_dir, exist_ok=True)
+        os.makedirs(log_dir, exist_ok=True)
+        writer = SummaryWriter(log_dir)
+
+    print ('Experiment name: {}\tDevice: {}'.format('test' if opt.test else exp_name, device))
+
     stats = {
         'losses': [0.] * opt.epochs, 
         'losses_test': [0.] * opt.epochs,
         'loss_ewma': 0.
     }
-    
-    def predict(batch, n_show=3, mode='greedy'):
+
+    predictions, gt = [], []
+
+    def predict(logits, y, lengths, y_lengths, n_show=5, mode='greedy'):
         print ('---------------------------')
-        with torch.no_grad():
-            x, y, lengths, y_lengths, _ = batch
-            x, y = x.to(device), y.to(device)
-            logits = model(x)
         
-        n = min(n_show, x.size(1))
+        n = min(n_show, logits.size(1))
         
         if mode == 'greedy':
             decoded = decoder.decode_greedy(logits, lengths)
         elif mode == 'beam':
             decoded = decoder.decode_beam(logits, lengths)
 
-        cursor, gt = 0, []        
+        predictions.extend(decoded)
+
+        cursor = 0
         for b in range(x.size(0)):
             y_str = ''.join([exp.trainset.vocab[ch - 1] for ch in y[cursor: cursor + y_lengths[b]]])
             gt.append(y_str)
             cursor += y_lengths[b]
             if b < n:
-                print ('Test seq {}: {}; pred_{}: {}\n'.format(b + 1, y_str, mode, decoded[b]))
+                print ('Test seq {}: {}; pred_{}: {}'.format(b + 1, y_str, mode, decoded[b]))
 
-        wer = decoder.wer_batch(decoded, gt)
-        cer = decoder.cer_batch(decoded, gt)
-        writer.add_scalar('Test/WER', wer, niters)
-        writer.add_scalar('Test/CER', cer, niters)
         print ('---------------------------')
 
 
     for ep in range(start_epoch, start_epoch + opt.epochs):
         optimfunc = exp.optim(ep)
-        # train loop
-        model.train()
-        widgets = ['Epoch {}: '.format(ep + 1), Percentage(), ' ', Bar('#'), ' ', Timer(), ' ', ETA()]
-        pbar = ProgressBar(widgets=widgets, maxval=len(exp.trainloader)).start()
-        
-        for i_batch, sample_batched in enumerate(exp.trainloader):
-            pbar.update(i_batch + 1)
-            niters += 1
-            optimfunc.zero_grad()
-            x, y, lengths, y_lengths, idx = sample_batched
-            
-            x, y = x.to(device), y.to(device)
-            logits = model(x)
-            loss_all = crit(F.log_softmax(logits, dim=-1), y, lengths, y_lengths)
-            loss = loss_all.mean()
-            if torch.isnan(loss).any():
-                print ('Skipping iteration with NaN loss')
-                continue
-            
-            weight = torch.ones_like(loss_all)
-            dlogits = torch.autograd.grad(loss_all, logits, grad_outputs=weight)[0]
-            if opt.curriculum > 0:
-                ratio = opt.curriculum ** ep
-                for b in range(x.size(0)):
-                    if exp.trainset.dataset[idx[b]]['mode'] == 1:
-                        dlogits[:, b] *= ratio
+        if not opt.test:
+            # train loop
+            model.train()
+            widgets = ['Epoch {}: '.format(ep + 1), Percentage(), ' ', Bar('#'), ' ', Timer(), ' ', ETA()]
+            pbar = ProgressBar(widgets=widgets, maxval=len(exp.trainloader)).start()
 
-            logits.backward(dlogits)
-            iter_loss = loss.item()
-            writer.add_scalar('Train/Loss', iter_loss, niters)
-            optimfunc.step()
-            stats['losses'][ep] += iter_loss * x.size(0)
-        
-        stats['losses'][ep] /= len(exp.trainset)
-        pbar.finish()
-        
-        # initialise EWMA statistics
-        if ep == 0:
-            stats['loss_ewma'] = stats['losses'][ep]
-        else:
-            stats['loss_ewma'] = stats['loss_ewma'] * 0.95 + stats['losses'][ep] * 0.05
+            for i_batch, sample_batched in enumerate(exp.trainloader):
+                pbar.update(i_batch + 1)
+                niters += 1
+                optimfunc.zero_grad()
+                x, y, lengths, y_lengths, idx = sample_batched
+
+                x, y = x.to(device), y.to(device)
+                logits = model(x)
+                loss_all = crit(F.log_softmax(logits, dim=-1), y, lengths, y_lengths)
+                loss = loss_all.mean()
+                if torch.isnan(loss).any():
+                    print ('Skipping iteration with NaN loss')
+                    continue
+
+                weight = torch.ones_like(loss_all)
+                dlogits = torch.autograd.grad(loss_all, logits, grad_outputs=weight)[0]
+                if opt.curriculum > 0:
+                    ratio = opt.curriculum ** ep
+                    for b in range(x.size(0)):
+                        if exp.trainset.dataset[idx[b]]['mode'] == 1:
+                            dlogits[:, b] *= ratio
+
+                logits.backward(dlogits)
+                iter_loss = loss.item()
+                writer.add_scalar('Train/Loss', iter_loss, niters)
+                optimfunc.step()
+                stats['losses'][ep] += iter_loss * x.size(0)
+
+            stats['losses'][ep] /= len(exp.trainset)
+            pbar.finish()
+
+            # initialise EWMA statistics
+            if ep == 0 or opt.checkpoint != '':
+                stats['loss_ewma'] = stats['losses'][ep]
+            else:
+                stats['loss_ewma'] = stats['loss_ewma'] * 0.95 + stats['losses'][ep] * 0.05
 
         # test loop
+        predictions, gt = [], []
         print ('Running evaluation')
+
         model.eval()
         with torch.no_grad():
             for i_batch, sample_batched in enumerate(exp.testloader):
                 x, y, lengths, y_lengths, idx = sample_batched
                 x = x.to(device)
-                # XXX: somehow breaks if y is moved to CUDA
-                # attempts to use CuDNN implementation but goes to native
+                # XXX: invalid if y is moved to CUDA, strange
+                # I try to use CuDNN implementation but it goes to native
+                # y = y.to(device)
                 logits = model(x)
                 loss_all = crit(F.log_softmax(logits, dim=-1), y, lengths, y_lengths)
                 loss = loss_all.mean()
@@ -194,21 +196,25 @@ if __name__ == '__main__':
                     print ('Skipping iteration with NaN test loss')
                     continue
                 stats['losses_test'][ep] += loss.item() * x.size(0)
-                # TODO: add bookkeeping for epoch WER and CER statistics
+                predict(logits, y, lengths, y_lengths, n_show=5, mode='beam' if opt.test else 'greedy')
         stats['losses_test'][ep] /= len(exp.testset)
-        writer.add_scalar('Test/Loss', stats['losses_test'][ep], niters)
-        
-        # print training statistics
-        if ep % opt.print_every == 0:
-            print ('Epoch {}: loss={:.5f}, avg={:.5f}, loss_test={:.5f}, loss_test_best={:.5f}'.format(ep + 1, stats['losses'][ep], stats['loss_ewma'], stats['losses_test'][ep], min(stats['losses_test'][: ep + 1])))
-                   
-        # run some predictions
-        if ep < 2 or ep % opt.test_every == 0:
-            model.eval()
-            batch = iter(exp.testloader).next()
-            predict(batch, n_show=3, mode='greedy')
-        
-        # save best checkpoint
+        wer = decoder.wer_batch(predictions, gt)
+        cer = decoder.cer_batch(predictions, gt)
+
+        if not opt.test:
+            writer.add_scalar('Test/Loss', stats['losses_test'][ep], niters)
+            writer.add_scalar('Test/WER', wer, niters)
+            writer.add_scalar('Test/CER', cer, niters)
+
+            # print epoch statistics
+            if ep % opt.print_every == 0:
+                print ('Epoch {}: loss={:.5f}, avg={:.5f}, loss_test={:.5f}, loss_test_best={:.5f}'.format(ep + 1, stats['losses'][ep], stats['loss_ewma'], stats['losses_test'][ep], min(stats['losses_test'][: ep + 1])))
+                print ('WER: {:.4f}, CER: {:.4f}'.format(wer, cer))
+        else:
+            print ('Test: loss_test={:.5f}, WER={:.4f}, CER={:.4f}'.format(stats['losses_test'][ep], wer, cer))
+            break
+
+        # save best checkpoint by loss
         if ep == 0 or stats['losses_test'][ep] < min(stats['losses_test'][: ep]):
 #         if ep % opt.checkpoint_every == 0 or ep == 0 or ep == opt.epochs - 1:
             state = {
@@ -216,7 +222,9 @@ if __name__ == '__main__':
                 'optim': optimfunc.state_dict(),
                 'epoch': ep + 1,
                 'iter': niters,
-                'opt': opt
+                'opt': opt,
+                'wer': wer,
+                'cer': cer
             }
             torch.save(state, os.path.join(ckpt_dir, 'checkpoint_e{:06d}_loss{:.5f}.pth'.format(ep + 1, stats['losses_test'][ep])))
             print ('Saved checkpoint')
