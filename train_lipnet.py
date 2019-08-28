@@ -24,7 +24,7 @@ from ctc_decoder import Decoder
 
 if __name__ == '__main__':
     os.environ['CUDA_DEVICE_ORDER'] = 'PCI_BUS_ID'
-    os.environ['CUDA_VISIBLE_DEVICES'] = '2'
+    os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 
     parser = argparse.ArgumentParser(description='LipNet in PyTorch')
     
@@ -88,6 +88,7 @@ if __name__ == '__main__':
         print ('Loading model {}'.format(opt.checkpoint))
         checkpoint = torch.load(opt.checkpoint)
         model.load_state_dict(checkpoint['net'])
+        exp.optimfunc.load_state_dict(checkpoint['optim'])
         niters, start_epoch = checkpoint['iter'], checkpoint['epoch']
 
     exp_name = '{}'.format(int(time.time()))
