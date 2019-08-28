@@ -48,7 +48,7 @@ class GRIDDataset(Dataset):
 
         # iterate speakers
         print ('Loading videos from {} set'.format(self.dset))
-        cache_path = '{}.pkl'.format(self.dset)
+        cache_path = '{}_{}.pkl'.format(self.dset, 'overlapped' if opt.test_overlapped else 'unseen')
         if os.path.exists(cache_path):
             self.dataset, count_v, self.vocab, self.vocab_mapping = pickle.load(open(cache_path, 'rb'))
         else:
