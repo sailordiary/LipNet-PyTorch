@@ -18,13 +18,13 @@ Then run the program:
 python3 train_lipnet.py
 ```
 
-to train on the overlapped speakers split:
+This trains on the "unseen speakers" split. To train on the "overlapped speakers" split:
 
 ```bash
 python3 train_lipnet.py --test_overlapped
 ```
 
-The overlapped speaker file list we use (`list_overlapped.json`) is exported directly from the authors' Torch implementation release [here](https://github.com/bshillingford/LipNet/blob/master/util/list_overlapped.t7).
+The overlapped speakers file list we use (`list_overlapped.json`) is exported directly from the authors' Torch implementation release [here](https://github.com/bshillingford/LipNet/blob/master/util/list_overlapped.t7).
 
 The `images` folder should be organised as:
 ```
