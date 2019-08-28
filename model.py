@@ -90,10 +90,10 @@ class Exp:
 
         self.model = LipNet(opt, self.vocab_size)
         self.opt = opt
-
-    # learning rate scheduler
-    def optim(self, epoch):
-        optimfunc = torch.optim.Adam(self.model.parameters(), lr=self.opt.lr)
         
-        return optimfunc
+        self.optimfunc = torch.optim.Adam(self.model.parameters(), lr=self.opt.lr)
+
+    # learning rate scheduler: fixed LR
+    def optim(self, epoch):
+        return self.optimfunc
 
