@@ -7,6 +7,7 @@ An unofficial PyTorch implementation of the model described in ["LipNet: End-to-
 First, create symbolic links to where you store images and alignments in the `data` folder:
 
 ```bash
+mkdir data
 ln -s PATH_TO_ALIGNS data/align
 ln -s PATH_TO_IMAGES data/images
 ```
@@ -16,6 +17,14 @@ Then run the program:
 ```bash
 python3 train_lipnet.py
 ```
+
+to train on the overlapped speakers split:
+
+```bash
+python3 train_lipnet.py --test_overlapped
+```
+
+The overlapped speaker file list we use (`list_overlapped.json`) is exported directly from the authors' Torch implementation release [here](https://github.com/bshillingford/LipNet/blob/master/util/list_overlapped.t7).
 
 The `images` folder should be organised as:
 ```
@@ -41,7 +50,7 @@ That's it! You can specify the GPU to use in the program where the environment v
 - Python 3.x
 - PyTorch 1.1+ (for native CTCLoss and TensorBoard support; we highly recommend using nightly builds, because PyTorch CTC is quite buggy and often fixes are not reflected in due course.)
 - tensorboardX (if you are not using PyTorch 1.1+, or your TensorFlow version is incompatible with native PyTorch Tensorboard support)
-- ctcdecode (for beam search decoding)
+- [ctcdecode](https://github.com/parlance/ctcdecode) (for beam search decoding)
 - torchsummary
 - progressbar2
 - editdistance
@@ -53,8 +62,6 @@ That's it! You can specify the GPU to use in the program where the environment v
 TODO
 
 ## Pending
-- Refactor code (WIP)
-- Add epoch WER and CER statistics
 - Add saliency visualisation
 - Add preprocessing code
 
