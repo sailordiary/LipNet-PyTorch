@@ -26,6 +26,11 @@ python3 train_lipnet.py --test_overlapped
 
 The overlapped speakers file list we use (`list_overlapped.json`) is exported directly from the authors' Torch implementation release [here](https://github.com/bshillingford/LipNet/blob/master/util/list_overlapped.t7).
 
+To monitor training progress:
+```bash
+tensorboard --logdir logs
+```
+
 The `images` folder should be organised as:
 ```
 ├── s1
