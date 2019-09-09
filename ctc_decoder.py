@@ -27,7 +27,7 @@ class Decoder:
     def decode_beam(self, logits, seq_lens):
         decoded = []
         tlogits = logits.transpose(0, 1)
-        beam_result, beam_scores, timesteps, out_seq_len = self._decoder.decode(tlogits, seq_lens)
+        beam_result, beam_scores, timesteps, out_seq_len = self._decoder.decode(tlogits.softmax(-1), seq_lens)
         for i in range(tlogits.size(0)):
             output_str = ''.join(map(lambda x: self.vocab_list[x], beam_result[i][0][:out_seq_len[i][0]]))
             decoded.append(output_str)
